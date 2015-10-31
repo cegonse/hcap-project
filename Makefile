@@ -1,22 +1,25 @@
 CC = gcc
 LFLAGS = -Wall -lm
-CFLAGS = -Wall -c -DDEBUG -DPOSIX -DC11 -g -std=c11 -march=native
-OBJ = bin/ppm.o bin/image.o bin/image_fast.o
+CFLAGS = -Wall -c -DDEBUG -DPX -g -march=native
+OBJ = bin/objs/ppm.o bin/objs/image.o bin/objs/image_fast.o
+C11 = -std=c11
 
-all : main.o ppm.o image.o image_fast.o
-	$(CC) $(LFLAGS) $(OBJ) bin/main.o -o bin/sharpen
+all : clean ppm.o image.o image_fast.o sharpen.o
+	$(CC) $(LFLAGS) $(OBJ) bin/objs/sharpen.o -o bin/sharpen
 
-main.o :
-	$(CC) $(CFLAGS) src/main.c -o bin/main.o
+sharpen.o :
+	$(CC) $(CFLAGS) $(C11) demos/sharpen/main.c -o bin/objs/sharpen.o
 
 ppm.o :
-	$(CC) $(CFLAGS) src/ppm.c -o bin/ppm.o
+	$(CC) $(CFLAGS) $(C11) src/ppm.c -o bin/objs/ppm.o
 
 image.o :
-	$(CC) $(CFLAGS) src/image.c -o bin/image.o
+	$(CC) $(CFLAGS) $(C11) src/image.c -o bin/objs/image.o
 
 image_fast.o :
-	$(CC) $(CFLAGS) src/image_fast.c -o bin/image_fast.o
+	$(CC) $(CFLAGS) $(C11) src/image_fast.c -o bin/objs/image_fast.o
 	
 clean :
-	rm bin/*
+	rm -rf bin
+	mkdir bin
+	mkdir bin/objs

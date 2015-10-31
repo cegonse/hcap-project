@@ -3,7 +3,7 @@
 
 ppm_t* img_fast_bw(ppm_t* src, double* cycles)
 {
-	int i = 0, j = 0;
+	/*int i = 0, j = 0;
 	float corr = 1.0f / 3.0f;
 	__m128 vcorr = _mm_load1_ps(&corr);
 	
@@ -14,7 +14,7 @@ ppm_t* img_fast_bw(ppm_t* src, double* cycles)
 			
 		}
 	}
-	
+	*/
 	return src;
 }
 

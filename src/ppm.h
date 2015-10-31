@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <malloc.h>
+#include <assert.h>
 
 typedef struct
 {

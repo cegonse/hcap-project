@@ -1,5 +1,5 @@
-#include "ppm.h"
-#include "image.h"
+#include "../../src/ppm.h"
+#include "../../src/image.h"
 
 int main (int argc, char* argv[])
 {
@@ -15,15 +15,18 @@ int main (int argc, char* argv[])
 	strcpy(fname, argv[1]);
 	strcpy(outname, argv[2]);
 	
+	// Attempt to load the input image
 	ppm_t *image = ppm_read(fname);
 	
 	if (image == NULL)
 	{
 		exit(1);
 	}
-
+	
+	// Apply sharpen filter with k = 4
 	image = img_sharpen(image, 4, NULL);
 	
+	// Save the result to the disk
 	ppm_write(outname, image);
 	ppm_free(image);
 	

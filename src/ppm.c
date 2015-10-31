@@ -115,6 +115,8 @@ ppm_t* ppm_read(const char *fname)
 			ppm->r[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
 			ppm->g[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
 			ppm->b[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
+			
+			//printf("(%d,%d)(%d) -> (%d, %d, %d)\n", i,j,n,ppm->r[i + ppm->h*j],ppm->g[i + ppm->h*j],ppm->b[i + ppm->h*j]);
 		}
 	}
 	
@@ -131,22 +133,24 @@ inline uint8_t* ppm_alloc_aligned(uint16_t w, uint16_t h)
 {
 	uint8_t* ptr = NULL;
 	
-	#ifdef C11
+	#if __STDC_VERSION__ == 201112L && !defined(__CYGWIN__)
+		// Use ISO C11 aligned_alloc
 		ptr = (uint8_t*)aligned_alloc(16, w * h * sizeof(uint8_t));
-	#elif ICC
+	#elif defined(__INTEL_COMPILER)
+		// Use Intel's ICC custom function
 		ptr = (uint8_t*)_mm_malloc(w * h * sizeof(uint8_t), 16);
-	#elif PX
-		#if !defined(posix_memalign)
+	#elif defined(PX)
+		// Try to find some way to create alligned memory in a POSIX system
+		#if _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600
 			posix_memalign((void**)&ptr, 16, w * h * sizeof(uint8_t));
-		#elif !defined(aligned_alloc)
-			ptr = (uint8_t*)aligned_alloc(16, w * h * sizeof(uint8_t));
-		#elif !defined(memalign)
+		#elif _BSD_SOURCE || (_XOPEN_SOURCE >= 500 || _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) && !(_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)
 			ptr = (uint8_t*)memalign(16, w * h * sizeof(uint8_t));
 		#else
-			#error "Aligned memory allocation is not supported by the environment"
+			ptr = (uint8_t*)malloc(w * h * sizeof(uint8_t));
 		#endif
 	#endif
 	
+	assert(ptr != NULL);
 	return ptr;
 }
 
@@ -181,8 +185,8 @@ void ppm_write(const char *fname, const ppm_t *ppm)
 	fprintf(fd, "%d %d\n", ppm->w, ppm->h);
 	fprintf(fd, "%d\n", ppm->max);
 	
-	size_t sz = ppm->w * ppm->h * 3;
-	uint8_t* dataptr = calloc(sz, sizeof(uint8_t));
+	size_t sz = ppm->w * ppm->h;
+	uint8_t* dataptr = malloc(sz * 3 * sizeof(uint8_t));
 	
 	int i = 0;
 	int j = 0;
@@ -197,8 +201,6 @@ void ppm_write(const char *fname, const ppm_t *ppm)
 			dataptr[n++] = ppm->b[i + ppm->h*j];
 		}
 	}
-	
-	
 	
 	fwrite(dataptr, sizeof(uint8_t), sz * 3, fd);
 	fclose(fd);

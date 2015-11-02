@@ -150,7 +150,31 @@ inline uint8_t* ppm_alloc_aligned(uint16_t w, uint16_t h)
 		#endif
 	#endif
 	
-	assert(ptr != NULL);
+	return ptr;
+}
+
+
+inline float* ppm_alloc_aligned_f(uint16_t w, uint16_t h)
+{
+	float* ptr = NULL;
+	
+	#if __STDC_VERSION__ == 201112L && !defined(__CYGWIN__)
+		// Use ISO C11 aligned_alloc
+		ptr = (float*)aligned_alloc(16, w * h * sizeof(float));
+	#elif defined(__INTEL_COMPILER)
+		// Use Intel's ICC custom function
+		ptr = (float*)_mm_malloc(w * h * sizeof(float), 16);
+	#elif defined(PX)
+		// Try to find some way to create alligned memory in a POSIX system
+		#if _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600
+			posix_memalign((void**)&ptr, 16, w * h * sizeof(float));
+		#elif _BSD_SOURCE || (_XOPEN_SOURCE >= 500 || _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) && !(_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)
+			ptr = (float*)memalign(16, w * h * sizeof(float));
+		#else
+			ptr = (float*)malloc(w * h * sizeof(float));
+		#endif
+	#endif
+	
 	return ptr;
 }
 

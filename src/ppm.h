@@ -27,6 +27,7 @@ void ppm_write(const char *fname, const ppm_t *ppm);
 void ppm_free(ppm_t *ppm);
 ppm_t* ppm_create(uint16_t w, uint16_t h, uint16_t max);
 uint8_t* ppm_alloc_aligned(uint16_t w, uint16_t h);
+float* ppm_alloc_aligned_f(uint16_t w, uint16_t h);
 
 
 #endif // _PPM_H_

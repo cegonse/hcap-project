@@ -2,8 +2,7 @@
 #define _CONVOLVE_H_
 
 #include "ppm.h"
-#include <immintrin.h>
-#include <emmintrin.h>
+#include "compintrin.h"
 
 ppm_t* img_brighten(ppm_t* src, float k, double* cycles);
 ppm_t* img_sharpen(ppm_t* src, float k, double* cycles);

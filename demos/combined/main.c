@@ -5,6 +5,7 @@ int main (int argc, char* argv[])
 {
 	char fname[128];
 	char outname[128];
+	uint64_t cycles = 0;
 	
 	if (argc < 3)
 	{
@@ -24,13 +25,25 @@ int main (int argc, char* argv[])
 	}
 	
 	// Brighten image
-	image = img_fast_brighten(image, 2, NULL);
+	img_brighten(image, 2, &cycles);
+	printf("Scalar brighten took %d cycles.\n", (int)cycles);
+	
+	img_fast_brighten(image, 2, &cycles);
+	printf("SSE brighten took %d cycles.\n", (int)cycles);
 	
 	// Apply sharpen filter with k = 4
-	image = img_fast_sharpen(image, 4, NULL);
+	img_sharpen(image, 4, &cycles);
+	printf("Scalar convolution took %d cycles.\n", (int)cycles);
+	
+	img_fast_sharpen(image, 4, &cycles);
+	printf("SSE convolution took %d cycles.\n", (int)cycles);
 	
 	// Turn to black and white
-	image = img_fast_bw(image, NULL);
+	img_bw(image, &cycles);
+	printf("Scalar black and white took %d cycles.\n", (int)cycles);
+	
+	img_fast_bw(image, &cycles);
+	printf("SSE black and white took %d cycles.\n", (int)cycles);
 	
 	// Save the result to the disk
 	ppm_write(outname, image);

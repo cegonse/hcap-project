@@ -7,7 +7,7 @@ ppm_t* ppm_read(const char *fname)
 	if (fd == NULL)
 	{
 		#ifdef DEBUG
-		printf("Error opening file descriptor\n");
+		printf("[DEBUG] Error opening file descriptor\n");
 		#endif
 		
 		return NULL;
@@ -44,7 +44,7 @@ ppm_t* ppm_read(const char *fname)
 				}
 				
 				#ifdef DEBUG
-				printf("Valid PPM file\n");
+				printf("[DEBUG] Valid PPM file\n");
 				#endif
 				fstart--;
 			}
@@ -57,8 +57,8 @@ ppm_t* ppm_read(const char *fname)
 				ppm->h = atoi(tk);
 				
 				#ifdef DEBUG
-				printf("- Width: %d\n", ppm->w);
-				printf("- Height: %d\n", ppm->h);
+				printf("[DEBUG] Width: %d\n", ppm->w);
+				printf("[DEBUG] Height: %d\n", ppm->h);
 				#endif
 				
 				ppm->r = ppm_alloc_aligned(ppm->w, ppm->h);
@@ -68,7 +68,7 @@ ppm_t* ppm_read(const char *fname)
 				if (ppm->r == NULL || ppm->g == NULL || ppm->b == NULL)
 				{
 					#ifdef DEBUG
-					printf("Error allocating memory\n");
+					printf("[DEBUG] Error allocating memory\n");
 					#endif
 					return NULL;
 				}
@@ -81,7 +81,7 @@ ppm_t* ppm_read(const char *fname)
 				ppm->max = atoi(hd);
 				
 				#ifdef DEBUG
-				printf("- Bit depth: %d bpp\n", 3*8*(ppm->max / 255));
+				printf("[DEBUG] Bit depth: %d bpp\n", 3*8*(ppm->max / 255));
 				#endif
 				
 				fstart--;
@@ -115,8 +115,6 @@ ppm_t* ppm_read(const char *fname)
 			ppm->r[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
 			ppm->g[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
 			ppm->b[i + ppm->h*j] = singlebyte ? imgdata8[n++] : (imgdata16[n+=szpp] * corr * 255);
-			
-			//printf("(%d,%d)(%d) -> (%d, %d, %d)\n", i,j,n,ppm->r[i + ppm->h*j],ppm->g[i + ppm->h*j],ppm->b[i + ppm->h*j]);
 		}
 	}
 	
@@ -136,18 +134,38 @@ inline uint8_t* ppm_alloc_aligned(uint16_t w, uint16_t h)
 	#if __STDC_VERSION__ == 201112L && !defined(__CYGWIN__)
 		// Use ISO C11 aligned_alloc
 		ptr = (uint8_t*)aligned_alloc(16, w * h * sizeof(uint8_t));
+		#ifdef DEBUG
+			printf("[DEBUG] Using ISO C11's aligned_alloc()\n");
+		#endif
 	#elif defined(__INTEL_COMPILER)
 		// Use Intel's ICC custom function
 		ptr = (uint8_t*)_mm_malloc(w * h * sizeof(uint8_t), 16);
+		#ifdef DEBUG
+			printf("[DEBUG] Using ICC's _mm_malloc()\n");
+		#endif
 	#elif defined(PX)
 		// Try to find some way to create alligned memory in a POSIX system
 		#if _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600
 			posix_memalign((void**)&ptr, 16, w * h * sizeof(uint8_t));
+			#ifdef DEBUG
+				printf("[DEBUG] Using POSIX's posix_memalign()\n");
+			#endif
 		#elif _BSD_SOURCE || (_XOPEN_SOURCE >= 500 || _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) && !(_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)
 			ptr = (uint8_t*)memalign(16, w * h * sizeof(uint8_t));
+			#ifdef DEBUG
+				printf("[DEBUG] Using POSIX's memalign()\n");
+			#endif
 		#else
 			ptr = (uint8_t*)malloc(w * h * sizeof(uint8_t));
+			#ifdef DEBUG
+				printf("[DEBUG] Using standard malloc()\n");
+				printf("[DEBUG] WARNING! This means memory is not aligned, and SSE performance will drop!.\n");
+			#endif
 		#endif
+	#endif
+	
+	#ifdef DEBUG
+	if (ptr == NULL) printf("[DEBUG] WARNING! Memory allocation failed!\n");
 	#endif
 	
 	return ptr;
@@ -161,18 +179,38 @@ inline float* ppm_alloc_aligned_f(uint16_t w, uint16_t h)
 	#if __STDC_VERSION__ == 201112L && !defined(__CYGWIN__)
 		// Use ISO C11 aligned_alloc
 		ptr = (float*)aligned_alloc(16, w * h * sizeof(float));
+		#ifdef DEBUG
+			printf("[DEBUG] Using ISO C11's aligned_alloc()\n");
+		#endif
 	#elif defined(__INTEL_COMPILER)
 		// Use Intel's ICC custom function
 		ptr = (float*)_mm_malloc(w * h * sizeof(float), 16);
+		#ifdef DEBUG
+			printf("[DEBUG] Using ICC's _mm_malloc()\n");
+		#endif
 	#elif defined(PX)
 		// Try to find some way to create alligned memory in a POSIX system
 		#if _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600
 			posix_memalign((void**)&ptr, 16, w * h * sizeof(float));
+			#ifdef DEBUG
+				printf("[DEBUG] Using POSIX's posix_memalign()\n");
+			#endif
 		#elif _BSD_SOURCE || (_XOPEN_SOURCE >= 500 || _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) && !(_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)
 			ptr = (float*)memalign(16, w * h * sizeof(float));
+			#ifdef DEBUG
+				printf("[DEBUG] Using POSIX's memalign()\n");
+			#endif
 		#else
 			ptr = (float*)malloc(w * h * sizeof(float));
+			#ifdef DEBUG
+				printf("[DEBUG] Using standard malloc()\n");
+				printf("[DEBUG] WARNING! This means memory is not aligned, and SSE performance will drop!.\n");
+			#endif
 		#endif
+	#endif
+	
+	#ifdef DEBUG
+	if (ptr == NULL) printf("[DEBUG] WARNING! Memory allocation failed!\n");
 	#endif
 	
 	return ptr;
@@ -190,6 +228,10 @@ ppm_t* ppm_create(uint16_t w, uint16_t h, uint16_t max)
 	ppm->r = ppm_alloc_aligned(ppm->w, ppm->h);
 	ppm->g = ppm_alloc_aligned(ppm->w, ppm->h);
 	ppm->b = ppm_alloc_aligned(ppm->w, ppm->h);
+	
+	#ifdef DEBUG
+	printf("[DEBUG] Called ppm_create()\n");
+	#endif
 	
 	return ppm;
 }
@@ -240,7 +282,7 @@ void ppm_free(ppm_t *ppm)
 	{
 		if (ppm->r != NULL)
 		{
-			#ifdef ICC
+			#ifdef __INTEL_COMPILER
 			_mm_free(ppm->r);
 			#else
 			free(ppm->r);
@@ -249,7 +291,7 @@ void ppm_free(ppm_t *ppm)
 
 		if (ppm->g != NULL)
 		{
-			#ifdef ICC
+			#ifdef __INTEL_COMPILER
 			_mm_free(ppm->g);
 			#else
 			free(ppm->g);
@@ -258,7 +300,7 @@ void ppm_free(ppm_t *ppm)
 
 		if (ppm->b != NULL)
 		{
-			#ifdef ICC
+			#ifdef __INTEL_COMPILER
 			_mm_free(ppm->b);
 			#else
 			free(ppm->b);

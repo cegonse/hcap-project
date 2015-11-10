@@ -5,6 +5,7 @@ int main (int argc, char* argv[])
 {
 	char fname[128];
 	char outname[128];
+	uint64_t cycles = 0;
 	
 	if (argc < 3)
 	{
@@ -24,7 +25,11 @@ int main (int argc, char* argv[])
 	}
 	
 	// Apply sharpen filter with k = 4
-	image = img_sharpen(image, 4, NULL);
+	img_sharpen(image, 4, &cycles);
+	printf("Scalar convolution took %d cycles.\n", (int)cycles);
+	
+	img_fast_sharpen(image, 4, &cycles);
+	printf("SSE convolution took %d cycles.\n", (int)cycles);
 	
 	// Save the result to the disk
 	ppm_write(outname, image);

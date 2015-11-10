@@ -1,10 +1,13 @@
 #include "image.h"
 
-ppm_t* img_brighten(ppm_t* src, float k, double* cycles)
+ppm_t* img_brighten(ppm_t* src, float k, uint64_t* cycles)
 {
 	if (k < 0) return src;
+	
 	int i = 0, j = 0;
 	uint16_t tempR, tempG, tempB;
+	
+	uint64_t t0 = readTSC();
 	
 	for (j = 0; j < src->w; j++)
 	{
@@ -23,16 +26,20 @@ ppm_t* img_brighten(ppm_t* src, float k, double* cycles)
 			src->b[i + src->h*j] = tempB;
 		}
 	}
-
+	
+	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
+	
 	return src;
 }
 
 
-ppm_t* img_bw(ppm_t* src, double* cycles)
+ppm_t* img_bw(ppm_t* src, uint64_t* cycles)
 {
 	int i = 0, j = 0;
 	uint8_t h = 0;
 	float corr = 1.0f / 3.0f;
+	
+	uint64_t t0 = readTSC();
 	
 	for (j = 0; j < src->w; j++)
 	{
@@ -46,11 +53,13 @@ ppm_t* img_bw(ppm_t* src, double* cycles)
 		}
 	}
 	
+	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
+	
 	return src;
 }
 
 
-ppm_t* img_sharpen(ppm_t* src, float k, double* cycles)
+ppm_t* img_sharpen(ppm_t* src, float k, uint64_t* cycles)
 {
 	int i = 0, j = 0;
 	float temp = 0.0f;
@@ -61,9 +70,9 @@ ppm_t* img_sharpen(ppm_t* src, float k, double* cycles)
 	uint8_t* convG = NULL;
 	uint8_t* convB = NULL;
 	
-	convR = ppm_alloc_aligned(src->w, src->h);
-	convG = ppm_alloc_aligned(src->w, src->h);
-	convB = ppm_alloc_aligned(src->w, src->h);
+	convR = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
+	convG = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
+	convB = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
 	
 	memcpy(convR, src->r, src->w * src->h * sizeof(uint8_t));
 	memcpy(convG, src->g, src->w * src->h * sizeof(uint8_t));
@@ -76,6 +85,8 @@ ppm_t* img_sharpen(ppm_t* src, float k, double* cycles)
 		#endif
 		return NULL;
 	}
+	
+	uint64_t t0 = readTSC();
 	
 	// Skip first and last row, no neighbors to convolve with
     for (j = 1; j < src->w - 1; j++)
@@ -133,6 +144,8 @@ ppm_t* img_sharpen(ppm_t* src, float k, double* cycles)
         }
     }
 	
+	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
+	
 	// Copy result to the original matrix
 	memcpy(src->r, convR, src->w * src->h * sizeof(uint8_t));
 	memcpy(src->g, convG, src->w * src->h * sizeof(uint8_t));
@@ -143,5 +156,19 @@ ppm_t* img_sharpen(ppm_t* src, float k, double* cycles)
 	free(convB);
 	
 	return src;
+}
+
+
+uint64_t readTSC()
+{
+   unsigned hi, lo;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+   return ((uint64_t) lo) | (((uint64_t) hi) << 32);
+}
+
+
+uint64_t cyclesElapsed(uint64_t stopTS, uint64_t startTS)
+{
+   return (stopTS - startTS);
 }
 

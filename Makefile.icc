@@ -1,0 +1,17 @@
+CC = icc
+LFLAGS = -lippcore
+CFLAGS = -DIPP -DPX -g -align -O3 -xssse3 -axssse3
+SRC = src/ppm.c src/image.c src/image_fast.c src/compintrin.c
+
+all :
+	$(CC) $(CFLAGS) $(LFLAGS) $(SRC) demos/sharpen/main.c -o bin/sharpen
+	$(CC) $(CFLAGS) $(LFLAGS) $(SRC) demos/combined/main.c -o bin/combined
+
+debug :
+	$(CC) $(CFLAGS) -DDEBUG $(LFLAGS) $(SRC) demos/sharpen/main.c -o bin/sharpen
+	$(CC) $(CFLAGS) -DDEBUG $(LFLAGS) $(SRC) demos/combined/main.c -o bin/combined
+	
+clean :
+	rm -rf bin
+	mkdir bin
+	mkdir bin/objs

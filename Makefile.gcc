@@ -1,6 +1,6 @@
 CC = gcc
 LFLAGS = -Wall -lm
-CFLAGS = -Wall -c -DDEBUG -DPX -g -march=native -malign-double -msse3
+CFLAGS = -Wall -c -DPX -g -march=native -malign-double -msse3
 OBJ = bin/objs/ppm.o bin/objs/image.o bin/objs/image_fast.o bin/objs/compintrin.o
 
 all : clean ppm.o image.o image_fast.o compintrin.o sharpen.o combined.o

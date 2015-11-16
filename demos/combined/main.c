@@ -35,7 +35,7 @@ int main (int argc, char* argv[])
 	img_sharpen(image, 4, &cycles);
 	printf("Scalar convolution took %d cycles.\n", (int)cycles);
 	
-	img_fast_sharpen(image, 4, &cycles);
+	img_fast_sharpen_copy(image, 4, &cycles);
 	printf("SSE convolution took %d cycles.\n", (int)cycles);
 	
 	// Turn to black and white

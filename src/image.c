@@ -59,32 +59,15 @@ ppm_t* img_bw(ppm_t* src, uint64_t* cycles)
 }
 
 
-ppm_t* img_sharpen(ppm_t* src, float k, uint64_t* cycles)
+ppm_t* img_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 {
 	int i = 0, j = 0;
 	float temp = 0.0f;
 	float PSF[9] = {-k/8.0, -k/8.0, -k/8.0, -k/8.0, k+1.0, -k/8.0, -k/8.0, -k/8.0, -k/8.0};
 	
-	// Initialize data
-	uint8_t* convR = NULL;
-	uint8_t* convG = NULL;
-	uint8_t* convB = NULL;
-	
-	convR = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
-	convG = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
-	convB = (uint8_t*) malloc(sizeof(uint8_t) * src->w * src->h);
-	
-	memcpy(convR, src->r, src->w * src->h * sizeof(uint8_t));
-	memcpy(convG, src->g, src->w * src->h * sizeof(uint8_t));
-	memcpy(convB, src->b, src->w * src->h * sizeof(uint8_t));
-	
-	if (convR == NULL || convG == NULL || convB == NULL)
-	{
-		#ifdef DEBUG
-		printf("Error allocating memory\n");
-		#endif
-		return NULL;
-	}
+	memcpy(dst->r, src->r, src->w * src->h * sizeof(uint8_t));
+	memcpy(dst->g, src->g, src->w * src->h * sizeof(uint8_t));
+	memcpy(dst->b, src->b, src->w * src->h * sizeof(uint8_t));
 	
 	uint64_t t0 = readTSC();
 	
@@ -95,67 +78,57 @@ ppm_t* img_sharpen(ppm_t* src, float k, uint64_t* cycles)
         for (i = 1; i < src->h - 1; i++)
         {
 			temp = 0.0f;
-            temp += (PSF[0] * src->r[i-1+(j-1)*src->h]);
-            temp += (PSF[1] * src->r[i-1+(j)*src->h]);
-            temp += (PSF[2] * src->r[i-1+(j+1)*src->h]);
-            temp += (PSF[3] * src->r[i+(j-1)*src->h]);
-            temp += (PSF[4] * src->r[i+(j)*src->h]);
-            temp += (PSF[5] * src->r[i+(j+1)*src->h]);
-            temp += (PSF[6] * src->r[i+1+(j-1)*src->h]);
-            temp += (PSF[7] * src->r[i+1+(j)*src->h]);
-            temp += (PSF[8] * src->r[i+1+(j+1)*src->h]);
+            temp += (PSF[0] * (float)src->r[i-1+(j-1)*src->h]);
+            temp += (PSF[1] * (float)src->r[i-1+(j)*src->h]);
+            temp += (PSF[2] * (float)src->r[i-1+(j+1)*src->h]);
+            temp += (PSF[3] * (float)src->r[i+(j-1)*src->h]);
+            temp += (PSF[4] * (float)src->r[i+(j)*src->h]);
+            temp += (PSF[5] * (float)src->r[i+(j+1)*src->h]);
+            temp += (PSF[6] * (float)src->r[i+1+(j-1)*src->h]);
+            temp += (PSF[7] * (float)src->r[i+1+(j)*src->h]);
+            temp += (PSF[8] * (float)src->r[i+1+(j+1)*src->h]);
 			
-			if (temp < 0) temp = 0;
-			if (temp > 255) temp = 255;
+			if (temp < 0.0f) temp = 0.0f;
+			if (temp > 255.0f) temp = (float)src->max;
 			
-			convR[i + src->h*j] = (uint8_t)temp;
+			dst->r[i + src->h*j] = (uint8_t)temp;
 
             temp = 0.0f;
-            temp += (PSF[0] * src->g[i-1+(j-1)*src->h]);
-            temp += (PSF[1] * src->g[i-1+(j)*src->h]);
-            temp += (PSF[2] * src->g[i-1+(j+1)*src->h]);
-            temp += (PSF[3] * src->g[i+(j-1)*src->h]);
-            temp += (PSF[4] * src->g[i+(j)*src->h]);
-            temp += (PSF[5] * src->g[i+(j+1)*src->h]);
-            temp += (PSF[6] * src->g[i+1+(j-1)*src->h]);
-            temp += (PSF[7] * src->g[i+1+(j)*src->h]);
-            temp += (PSF[8] * src->g[i+1+(j+1)*src->h]);
+            temp += (PSF[0] * (float)src->g[i-1+(j-1)*src->h]);
+            temp += (PSF[1] * (float)src->g[i-1+(j)*src->h]);
+            temp += (PSF[2] * (float)src->g[i-1+(j+1)*src->h]);
+            temp += (PSF[3] * (float)src->g[i+(j-1)*src->h]);
+            temp += (PSF[4] * (float)src->g[i+(j)*src->h]);
+            temp += (PSF[5] * (float)src->g[i+(j+1)*src->h]);
+            temp += (PSF[6] * (float)src->g[i+1+(j-1)*src->h]);
+            temp += (PSF[7] * (float)src->g[i+1+(j)*src->h]);
+            temp += (PSF[8] * (float)src->g[i+1+(j+1)*src->h]);
 			
-			if (temp < 0) temp = 0;
-			if (temp > 255) temp = 255;
+			if (temp < 0.0f) temp = 0.0f;
+			if (temp > 255.0f) temp = (float)src->max;
 			
-			convG[i + src->h*j] = (uint8_t)temp;
+			dst->g[i + src->h*j] = (uint8_t)temp;
 
             temp=0;
-            temp += (PSF[0] * src->b[i-1+(j-1)*src->h]);
-            temp += (PSF[1] * src->b[i-1+(j)*src->h]);
-            temp += (PSF[2] * src->b[i-1+(j+1)*src->h]);
-            temp += (PSF[3] * src->b[i+(j-1)*src->h]);
-            temp += (PSF[4] * src->b[i+(j)*src->h]);
-            temp += (PSF[5] * src->b[i+(j+1)*src->h]);
-            temp += (PSF[6] * src->b[i+1+(j-1)*src->h]);
-            temp += (PSF[7] * src->b[i+1+(j)*src->h]);
-            temp += (PSF[8] * src->b[i+1+(j+1)*src->h]);
+            temp += (PSF[0] * (float)src->b[i-1+(j-1)*src->h]);
+            temp += (PSF[1] * (float)src->b[i-1+(j)*src->h]);
+            temp += (PSF[2] * (float)src->b[i-1+(j+1)*src->h]);
+            temp += (PSF[3] * (float)src->b[i+(j-1)*src->h]);
+            temp += (PSF[4] * (float)src->b[i+(j)*src->h]);
+            temp += (PSF[5] * (float)src->b[i+(j+1)*src->h]);
+            temp += (PSF[6] * (float)src->b[i+1+(j-1)*src->h]);
+            temp += (PSF[7] * (float)src->b[i+1+(j)*src->h]);
+            temp += (PSF[8] * (float)src->b[i+1+(j+1)*src->h]);
 			
-			if (temp < 0) temp = 0;
-			if (temp > 255) temp = 255;
+			if (temp < 0.0f) temp = 0.0f;
+			if (temp > 255.0f) temp = (float)src->max;
 			
-			convB[i + src->h*j] = (uint8_t)temp;
+			dst->b[i + src->h*j] = (uint8_t)temp;
         }
     }
 	
 	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
-	
-	// Copy result to the original matrix
-	memcpy(src->r, convR, src->w * src->h * sizeof(uint8_t));
-	memcpy(src->g, convG, src->w * src->h * sizeof(uint8_t));
-	memcpy(src->b, convB, src->w * src->h * sizeof(uint8_t));
-	
-	free(convR);
-	free(convG);
-	free(convB);
-	
-	return src;
+	return dst;
 }
 
 

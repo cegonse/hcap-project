@@ -92,16 +92,26 @@ ppm_t* img_fast_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 {
 	int i = 0, j = 0;
 	float temp = 0.0f;
-	float PSF[12] = {-k/8.0f, -k/8.0f, -k/8.0f, 0.0f, -k/8.0f, k+1.0f, -k/8.0f, 0.0f, -k/8.0f, -k/8.0f, -k/8.0f, 0.0f};
-	float tempr[4] = { 0.0f };
+	float PSF[12] __attribute__((aligned(16)))
+		= {-k/8.0f, -k/8.0f, -k/8.0f, 0.0f, -k/8.0f, k+1.0f, -k/8.0f, 0.0f, -k/8.0f, -k/8.0f, -k/8.0f, 0.0f};
+	float tempr[4] __attribute__((aligned(16)))
+		= { 0.0f };
+	int mask[4] __attribute__((aligned(16)))
+		= { 0xFFFF0000, 0xFFFF0000, 0xFFFF0000, 0xFFFF0000 };
 	
-	__m128 xmm0 = _mm_load_ps(PSF);
-	__m128 xmm1 = _mm_load_ps(PSF + 4);
-	__m128 xmm2 = _mm_load_ps(PSF + 8);
-	__m128 xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9;
+	__m128 xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9;
+	__m128i xmm11;
+	
+	memcpy(dst->r, src->r, src->h*src->w*sizeof(uint8_t));
+	memcpy(dst->g, src->g, src->h*src->w*sizeof(uint8_t));
+	memcpy(dst->b, src->b, src->h*src->w*sizeof(uint8_t));
 	
 	uint64_t t0 = readTSC();
 	_mm_empty();
+	
+	xmm0 = _mm_load_ps(PSF);
+	xmm1 = _mm_load_ps(PSF + 4);
+	xmm2 = _mm_load_ps(PSF + 8);
 	
 	// Skip first and last row, no neighbors to convolve with
     for (j = 1; j < src->w - 1; j++)
@@ -112,9 +122,23 @@ ppm_t* img_fast_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
             temp = 0.0f;
 			
 			// Load 9 values
-			xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->r[i - 1 + (j-1)*src->h]);
-			xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->r[i + (j-1)*src->h]);
-			xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->r[i + 1 + (j-1)*src->h]);
+			//xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->r[i + (j-1)*src->h - 1]);
+			//xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->r[i + (j)*src->h - 1]);
+			//xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->r[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->r[i + (j-1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm3 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->r[i + (j)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm4 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->r[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm5 = _mm_cvtepi32_ps(xmm11);
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -123,24 +147,34 @@ ppm_t* img_fast_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
+			_mm_store_ps(tempr, xmm9);
+			temp = tempr[0] + tempr[1] + tempr[2];
 			
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
-			dst->r[i + src->h*j] = (uint8_t)temp;
 			
+			dst->r[i + src->h*j] = (uint8_t)temp;
 			temp = 0.0f;
-			_mm_empty();
 			
             // Load 9 values
-			xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->g[i - 1 + (j-1)*src->h]);
-			xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->g[i + (j-1)*src->h]);
-			xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->g[i + 1 + (j-1)*src->h]);
+			//xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->g[i + (j-1)*src->h - 1]);
+			//xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->g[i + (j)*src->h - 1]);
+			//xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->g[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->g[i + (j-1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm3 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->g[i + (j)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm4 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->g[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm5 = _mm_cvtepi32_ps(xmm11);
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -149,24 +183,34 @@ ppm_t* img_fast_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
+			_mm_store_ps(tempr, xmm9);
+			temp = tempr[0] + tempr[1] + tempr[2];
 			
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
-			dst->g[i + src->h*j] = (uint8_t)temp;
 			
+			dst->g[i + src->h*j] = (uint8_t)temp;
 			temp = 0.0f;
-			_mm_empty();
 			
 			// Load 9 values
-			xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->b[i - 1 + (j-1)*src->h]);
-			xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->b[i + (j-1)*src->h]);
-			xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->b[i + 1 + (j-1)*src->h]);
+			//xmm3 = _mm_cvtpu8_ps(*(__m64*)&src->b[i + (j-1)*src->h - 1]);
+			//xmm4 = _mm_cvtpu8_ps(*(__m64*)&src->b[i + (j)*src->h - 1]);
+			//xmm5 = _mm_cvtpu8_ps(*(__m64*)&src->b[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->b[i + (j-1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm3 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->b[i + (j)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm4 = _mm_cvtepi32_ps(xmm11);
+			
+			xmm11 = _mm_cvtsi32_si128(*(const int*)&src->b[i + (j+1)*src->h - 1]);
+			xmm11 = _mm_unpacklo_epi8(xmm11, _mm_setzero_si128());
+			xmm11 = _mm_unpacklo_epi16(xmm11, _mm_setzero_si128());
+			xmm5 = _mm_cvtepi32_ps(xmm11);
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -175,62 +219,39 @@ ppm_t* img_fast_sharpen(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
+			_mm_store_ps(tempr, xmm9);
+			temp = tempr[0] + tempr[1] + tempr[2];
 			
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
+			
 			dst->b[i + src->h*j] = (uint8_t)temp;
-			_mm_empty();
         }
     }
 	
+	_mm_empty();
 	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
 	
 	return dst;
 }
 
 
-ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
+ppm_t* img_fast_sharpen_copy(ppm_t* src, ppm_t* dst, float k, uint64_t* cycles)
 {
 	int i = 0, j = 0;
 	float temp = 0.0f;
-	float PSF[12] = {-k/8.0f, -k/8.0f, -k/8.0f, 0.0f, -k/8.0f, k+1.0f, -k/8.0f, 0.0f, -k/8.0f, -k/8.0f, -k/8.0f, 0.0f};
-	float tempr[4] = { 0.0f };
+	float PSF[12] __attribute__((aligned(16)))
+		= {-k/8.0f, -k/8.0f, -k/8.0f, 0.0f, -k/8.0f, k+1.0f, -k/8.0f, 0.0f, -k/8.0f, -k/8.0f, -k/8.0f, 0.0f};
+	float tempr[4] __attribute__((aligned(16)))
+		= { 0.0f };
 	
-	__m128 xmm0 = _mm_load_ps(PSF);
-	__m128 xmm1 = _mm_load_ps(PSF + 4);
-	__m128 xmm2 = _mm_load_ps(PSF + 8);
-	__m128 xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9;
+	__m128 xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9;
 	
 	// Initialize data
-	float* copyR = NULL;
-	float* copyG = NULL;
-	float* copyB = NULL;
-	
-	float* convR = NULL;
-	float* convG = NULL;
-	float* convB = NULL;
-	
-	copyR = ppm_alloc_aligned_f(src->w, src->h);
-	copyG = ppm_alloc_aligned_f(src->w, src->h);
-	copyB = ppm_alloc_aligned_f(src->w, src->h);
-	
-	convR = (float*) malloc(sizeof(float) * src->w * src->h);
-	convG = (float*) malloc(sizeof(float) * src->w * src->h);
-	convB = (float*) malloc(sizeof(float) * src->w * src->h);
-	
-	if (convR == NULL || convG == NULL || convB == NULL)
-	{
-		#ifdef DEBUG
-		printf("Error allocating memory\n");
-		#endif
-		return NULL;
-	}
+	float* copyR = ppm_alloc_aligned_f(src->w, src->h);
+	float* copyG = ppm_alloc_aligned_f(src->w, src->h);
+	float* copyB = ppm_alloc_aligned_f(src->w, src->h);
 	
 	for (j = 0; j < src->w; j++)
 	{
@@ -240,14 +261,18 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
 			copyG[i + src->h*j] = (float)src->g[i + src->h*j];
 			copyB[i + src->h*j] = (float)src->b[i + src->h*j];
 			
-			convR[i + src->h*j] = (float)src->r[i + src->h*j];
-			convG[i + src->h*j] = (float)src->g[i + src->h*j];
-			convB[i + src->h*j] = (float)src->b[i + src->h*j];
+			dst->r[i + src->h*j] = src->r[i + src->h*j];
+			dst->g[i + src->h*j] = src->g[i + src->h*j];
+			dst->b[i + src->h*j] = src->b[i + src->h*j];
 		}
 	}
 	
 	uint64_t t0 = readTSC();
 	_mm_empty();
+	
+	xmm0 = _mm_load_ps(PSF);
+	xmm1 = _mm_load_ps(PSF + 4);
+	xmm2 = _mm_load_ps(PSF + 8);
 	
 	// Skip first and last row, no neighbors to convolve with
     for (j = 1; j < src->w - 1; j++)
@@ -256,11 +281,20 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
         for (i = 1; i < src->h - 1; i++)
         {
             temp = 0.0f;
-			
+
 			// Load 9 values
-			xmm3 = _mm_loadu_ps(&copyR[i - 1 + (j-1)*src->h]);
-			xmm4 = _mm_loadu_ps(&copyR[i + (j-1)*src->h]);
-			xmm5 = _mm_loadu_ps(&copyR[i + 1 + (j-1)*src->h]);
+			if ((i-1) % 4 == 0)
+			{
+				xmm3 = _mm_load_ps(&copyR[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_load_ps(&copyR[i + (j)*src->h] - 1);
+				xmm5 = _mm_load_ps(&copyR[i + (j+1)*src->h] - 1);
+			}
+			else
+			{
+				xmm3 = _mm_loadu_ps(&copyR[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_loadu_ps(&copyR[i + (j)*src->h] - 1);
+				xmm5 = _mm_loadu_ps(&copyR[i + (j+1)*src->h] - 1);
+			}
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -269,24 +303,28 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
+			_mm_store_ps(tempr, xmm9);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
-			
+			temp = tempr[0] + tempr[1] + tempr[2];
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
 			
-			convR[i + src->h*j] = temp;
+			dst->r[i + src->h*j] = (uint8_t)temp;
 			temp = 0.0f;
-			_mm_empty();
 			
             // Load 9 values
-			xmm3 = _mm_loadu_ps(copyG+i-1+(j-1)*src->h);
-			xmm4 = _mm_loadu_ps(copyG+i+(j-1)*src->h);
-			xmm5 = _mm_loadu_ps(copyG+i+1+(j-1)*src->h);
+			if ((i-1) % 4 == 0)
+			{
+				xmm3 = _mm_load_ps(&copyG[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_load_ps(&copyG[i + (j)*src->h] - 1);
+				xmm5 = _mm_load_ps(&copyG[i + (j+1)*src->h] - 1);
+			}
+			else
+			{
+				xmm3 = _mm_loadu_ps(&copyG[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_loadu_ps(&copyG[i + (j)*src->h] - 1);
+				xmm5 = _mm_loadu_ps(&copyG[i + (j+1)*src->h] - 1);
+			}
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -295,24 +333,28 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
+			_mm_store_ps(tempr, xmm9);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
-			
+			temp = tempr[0] + tempr[1] + tempr[2];
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
 			
-			convG[i + src->h*j] = temp;
+			dst->g[i + src->h*j] = (uint8_t)temp;
 			temp = 0.0f;
-			_mm_empty();
 			
 			// Load 9 values
-			xmm3 = _mm_loadu_ps(copyB+i-1+(j-1)*src->h);
-			xmm4 = _mm_loadu_ps(copyB+i+(j-1)*src->h);
-			xmm5 = _mm_loadu_ps(copyB+i+1+(j-1)*src->h);
+			if ((i-1) % 4 == 0)
+			{
+				xmm3 = _mm_load_ps(&copyB[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_load_ps(&copyB[i + (j)*src->h] - 1);
+				xmm5 = _mm_load_ps(&copyB[i + (j+1)*src->h] - 1);
+			}
+			else
+			{
+				xmm3 = _mm_loadu_ps(&copyB[i + (j-1)*src->h] - 1);
+				xmm4 = _mm_loadu_ps(&copyB[i + (j)*src->h] - 1);
+				xmm5 = _mm_loadu_ps(&copyB[i + (j+1)*src->h] - 1);
+			}
 			
 			// Multiply
 			xmm6 = _mm_mul_ps(xmm0, xmm3);
@@ -321,38 +363,20 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
 			
 			// Add
 			xmm9 = _mm_add_ps(xmm6, _mm_add_ps(xmm7, xmm8));
-			_mm_store_ps(tempr, xmm3);
+			_mm_store_ps(tempr, xmm9);
 			
-			temp += tempr[0];
-			temp += tempr[1];
-			temp += tempr[2];
-			temp += tempr[3];
-			
+			temp = tempr[0] + tempr[1] + tempr[2];
 			if (temp < 0.0f) temp = 0.0f;
 			if (temp > (float)src->max) temp = (float)src->max;
 			
-			convB[i + src->h*j] = temp;
-			_mm_empty();
+			dst->b[i + src->h*j] = (uint8_t)temp;
         }
     }
 	
+	_mm_empty();
+	
 	if (cycles != NULL) *cycles = cyclesElapsed(readTSC(), t0);
-	
-	// Copy result to the original matrix
-	for (j = 0; j < src->w; j++)
-	{
-		for (i = 0; i < src->h; i++)
-		{
-			src->r[i + src->h*j] = (uint8_t)convR[i + src->h*j];
-			src->g[i + src->h*j] = (uint8_t)convG[i + src->h*j];
-			src->b[i + src->h*j] = (uint8_t)convB[i + src->h*j];
-		}
-	}
-	
-	free(convR);
-	free(convG);
-	free(convB);
-	
+
 	#ifdef __INTEL_COMPILER
 	_mm_free(copyR);
 	#else
@@ -371,5 +395,5 @@ ppm_t* img_fast_sharpen_copy(ppm_t* src, float k, uint64_t* cycles)
 	free(copyB);
 	#endif
 	
-	return src;
+	return dst;
 }

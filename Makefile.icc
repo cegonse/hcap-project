@@ -1,6 +1,6 @@
 CC = icc
 LFLAGS = -lippcore
-CFLAGS = -DIPP -DPX -g -align -O3 -xssse3 -axssse3
+CFLAGS = -DIPP -DPX -g -align -O3
 SRC = src/ppm.c src/image.c src/image_fast.c src/compintrin.c
 
 all :
